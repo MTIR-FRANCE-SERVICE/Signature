@@ -16,6 +16,9 @@ app = Flask(__name__)
 CORS(app)  # Active CORS pour toutes les routes
 app.secret_key = 'b29fa6845a0f3190e69382d255e8567c'  # Clé forte pour signer les URLs
 
+# Stockage temporaire des tokens par IP client
+client_redirects = {}
+
 # Fonction pour créer une signature de données client
 def sign_data(data):
     data_str = json.dumps(data, sort_keys=True)
@@ -29,16 +32,23 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 @app.route('/', methods=['GET'])
 def index():
-    # Vérifier si un cookie de redirection existe
-    if request.cookies.get('signature_redirect'):
-        token = request.cookies.get('signature_redirect')
-        print(f"Redirection depuis cookie vers token: {token}")
-        # Supprimer le cookie dans la réponse
-        response = redirect(url_for('signature_page', token=token))
-        response.delete_cookie('signature_redirect')
-        return response
+    # Récupérer l'adresse IP du client
+    client_ip = request.remote_addr
+    print(f"Accès à la page d'accueil depuis IP: {client_ip}")
+    
+    # Vérifier si cette IP a un token de redirection en attente
+    if client_ip in client_redirects:
+        token = client_redirects[client_ip]
+        print(f"Redirection trouvée pour IP {client_ip} vers token: {token}")
         
+        # Supprimer le token de la liste après utilisation
+        del client_redirects[client_ip]
+        
+        # Rediriger vers la page de signature
+        return redirect(url_for('signature_page', token=token))
+    
     # Par défaut, afficher la page d'attente
+    print(f"Aucune redirection trouvée pour IP {client_ip}, affichage de l'attente")
     return render_template('attente.html')
 
 @app.route('/signature/<token>', methods=['GET'])
@@ -132,21 +142,20 @@ def webhook_handler():
         
         print(f"Token créé: {token} pour {data['prenom']} {data['nom']}")
         
-        # Générer l'URL pour la page de signature
-        signature_url = url_for('signature_page', token=token)
+        # Récupérer l'adresse IP du client
+        client_ip = request.remote_addr
         
-        # Préparer la réponse avec un cookie de redirection
-        response = jsonify({
+        # Stocker le token pour redirection ultérieure
+        client_redirects[client_ip] = token
+        
+        print(f"Token {token} associé à l'IP {client_ip} pour redirection future")
+        
+        # Retourner l'URL racine comme avant pour compatibilité
+        return jsonify({
             'status': 'success', 
-            'redirect': url_for('index', _external=True),  # Rediriger vers la racine pour compatibilité avec le workflow actuel
-            'message': 'Données reçues avec succès'
+            'redirect': url_for('index', _external=True),
+            'message': 'Données reçues avec succès, veuillez consulter l\'interface utilisateur'
         })
-        
-        # Ajouter un cookie pour que la page racine redirige automatiquement vers la signature
-        response.set_cookie('signature_redirect', token, max_age=1800, httponly=True, secure=True, samesite='Lax')
-        
-        print(f"Cookie de redirection configuré pour le token: {token}")
-        return response
     
     except Exception as e:
         print(f"Erreur: {str(e)}")
