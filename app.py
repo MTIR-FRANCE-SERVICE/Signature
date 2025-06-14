@@ -188,62 +188,66 @@ def view_pdf(token):
 
 @app.route('/sign/<token>', methods=['POST'])
 def sign_pdf(token):
-    # Vérifier si le token existe
-    info_path = os.path.join(UPLOAD_FOLDER, f"{token}.json")
+    # Vérifier que le token est valide
+    token_file = os.path.join(UPLOAD_FOLDER, f"{token}.json")
+    if not os.path.exists(token_file):
+        return jsonify({'status': 'error', 'message': 'Session de signature invalide ou expirée'})
     
-    if not os.path.exists(info_path):
-        return jsonify({'status': 'error', 'message': 'Token invalide ou expiré'})
+    # Charger les données de la session
+    with open(token_file, 'r') as f:
+        token_data = json.load(f)
     
-    # Lire le fichier de données client
-    with open(info_path, 'r') as f:
-        info = json.load(f)
+    # Vérifier les données requêtes
+    data = request.json
+    signature_data = data.get('signature')
+    positions = data.get('positions', [])
     
-    # Récupérer les données
-    signature_data = request.json.get('signature')
-    client_data = info.get('client_data')
-    pdf_path = info.get('pdf_path')
+    if not signature_data:
+        return jsonify({'status': 'error', 'message': 'Aucune signature fournie'})
     
-    if not signature_data or not client_data or not pdf_path or not os.path.exists(pdf_path):
-        return jsonify({'status': 'error', 'message': 'Données manquantes ou invalides'})
+    # Extraire les informations client et PDF
+    client_data = token_data.get('client_data')
+    pdf_path = token_data.get('pdf_path')
+    
+    if not client_data or not pdf_path or not os.path.exists(pdf_path):
+        return jsonify({'status': 'error', 'message': 'Données de session incohérentes'})
     
     try:
-        # Version simplifiée: sauvegarder uniquement la signature
-        signature_data = signature_data.split(',')[1]
+        # Enregistrer la signature comme une image PNG
+        signature_image_path = os.path.join(UPLOAD_FOLDER, f"signature_{token}.png")
         
-        # Créer un fichier pour la signature
-        signature_path = os.path.join(UPLOAD_FOLDER, f"signature_{token}.png")
+        # Décoder et enregistrer la signature
+        signature_data = signature_data.replace('data:image/png;base64,', '')
+        signature_data = signature_data.replace('data:image/jpeg;base64,', '')
         
-        # Écrire les données base64 décodées dans le fichier
-        with open(signature_path, 'wb') as f:
+        with open(signature_image_path, 'wb') as f:
             f.write(base64.b64decode(signature_data))
         
-        # Copier le PDF original comme document final
-        # Dans une version complète, on fusionnerait la signature dans le PDF
-        output_pdf = os.path.join(UPLOAD_FOLDER, f"contrat-{token}.pdf")
-        with open(pdf_path, 'rb') as src_pdf:
-            with open(output_pdf, 'wb') as dest_pdf:
-                dest_pdf.write(src_pdf.read())
+        # Copier le PDF pour la version signée (pour l'instant, juste une copie)
+        signed_pdf_path = os.path.join(UPLOAD_FOLDER, f"contrat-{token}.pdf")
         
-        # Mettre à jour le fichier d'informations
-        info['signed'] = True
-        info['signature_path'] = signature_path
-        info['signed_pdf_path'] = output_pdf
-        info['signed_at'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Copier le fichier original (sans modification pour l'instant)
+        with open(pdf_path, 'rb') as src, open(signed_pdf_path, 'wb') as dst:
+            dst.write(src.read())
         
-        # Sauvegarder les informations mises à jour
-        with open(info_path, 'w') as f:
-            json.dump(info, f)
-            
-        print(f"Signature enregistrée pour token {token}: {client_data['prenom']} {client_data['nom']}")
+        # Enregistrer les positions de signature dans les données du token
+        if positions:
+            token_data['signature_positions'] = positions
+            print(f"Positions de signature enregistrées: {len(positions)} position(s)")
         
-        return jsonify({
-            'status': 'success',
-            'client': f"{client_data['prenom']} {client_data['nom']}",
-            'message': 'Signature enregistrée avec succès',
-            'token': token
-        })
+        # Mettre à jour les données du token pour inclure le chemin du PDF signé
+        token_data['signed_pdf'] = signed_pdf_path
+        token_data['signature_path'] = signature_image_path
+        
+        # Enregistrer les données mises à jour
+        with open(token_file, 'w') as f:
+            json.dump(token_data, f)
+        
+        return jsonify({'status': 'success', 'message': 'Signature enregistrée avec succès'})
     
     except Exception as e:
+        print(f"Erreur lors du traitement de la signature: {str(e)}")
+        return jsonify({'status': 'error', 'message': f"Une erreur s'est produite: {str(e)}"})
         print(f"Erreur lors de la signature: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})
 
