@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signature de document</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .client-info {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .pdf-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            height: 500px;
+            overflow: auto;
+        }
+        #pdf-viewer {
+            width: 100%;
+            height: 100%;
+        }
+        .signature-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        #signature-pad {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+            height: 200px;
+            background-color: white;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .success-message {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            background-color: #dff0d8;
+            color: #3c763d;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .client-detail {
+            margin: 10px 0;
+        }
+        .client-label {
+            font-weight: bold;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            .pdf-container {
+                height: 400px;
+            }
+            #signature-pad {
+                height: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Signature de Document</h1>
+        </div>
+
+        <div class="client-info">
+            <h2>Informations Client</h2>
+            <div class="client-detail">
+                <span class="client-label">Nom :</span> 
+                <span id="client-nom">{{ client.nom }}</span>
+            </div>
+            <div class="client-detail">
+                <span class="client-label">Prénom :</span> 
+                <span id="client-prenom">{{ client.prenom }}</span>
+            </div>
+            <div class="client-detail">
+                <span class="client-label">Email :</span> 
+                <span id="client-email">{{ client.email }}</span>
+            </div>
+            <div class="client-detail">
+                <span class="client-label">Téléphone :</span> 
+                <span id="client-telephone">{{ client.telephone }}</span>
+            </div>
+        </div>
+
+        <div class="pdf-container">
+            <h2>Document à Signer</h2>
+            <iframe id="pdf-viewer" src="/view-pdf"></iframe>
+        </div>
+
+        <div class="signature-container">
+            <h2>Votre Signature</h2>
+            <canvas id="signature-pad"></canvas>
+            <div style="margin-top: 10px;">
+                <button id="clear-button">Effacer</button>
+                <button id="sign-button">Signer le Document</button>
+            </div>
+        </div>
+
+        <div id="success-message" class="success-message">
+            ✅ Contrat signé et envoyé avec succès !
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialiser le pad de signature
+            const canvas = document.getElementById('signature-pad');
+            const signaturePad = new SignaturePad(canvas, {
+                backgroundColor: 'rgb(255, 255, 255)'
+            });
+
+            // Ajuster la taille du canvas
+            function resizeCanvas() {
+                const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                canvas.width = canvas.offsetWidth * ratio;
+                canvas.height = canvas.offsetHeight * ratio;
+                canvas.getContext("2d").scale(ratio, ratio);
+                signaturePad.clear(); // Nettoyage nécessaire après redimensionnement
+            }
+            
+            window.addEventListener("resize", resizeCanvas);
+            resizeCanvas();
+
+            // Gérer le bouton d'effacement
+            document.getElementById('clear-button').addEventListener('click', function() {
+                signaturePad.clear();
+            });
+
+            // Gérer le bouton de signature
+            document.getElementById('sign-button').addEventListener('click', function() {
+                if (signaturePad.isEmpty()) {
+                    alert("Veuillez signer le document avant de continuer.");
+                    return;
+                }
+
+                // Obtenir les données de la signature en base64
+                const signatureData = signaturePad.toDataURL();
+
+                // Envoyer la signature au serveur
+                fetch('/sign', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ signature: signatureData }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        // Afficher le message de succès
+                        document.getElementById('success-message').style.display = 'block';
+                        
+                        // Désactiver les boutons
+                        document.getElementById('clear-button').disabled = true;
+                        document.getElementById('sign-button').disabled = true;
+                        
+                        // Défiler vers le message de succès
+                        document.getElementById('success-message').scrollIntoView({
+                            behavior: 'smooth'
+                        });
+                    } else {
+                        alert("Erreur: " + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur:', error);
+                    alert("Une erreur s'est produite lors de l'envoi de la signature.");
+                });
+            });
+        });
+    </script>
+</body>
+</html>
