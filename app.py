@@ -10,7 +10,25 @@ from PyPDF2 import PdfFileReader, PdfFileWriter
 
 app = Flask(__name__)
 CORS(app)  # Active CORS pour toutes les routes
-app.secret_key = 'votre_clef_secrete_aleatoire'  # Nécessaire pour les sessions
+
+# Configuration robuste des sessions
+app.secret_key = 'b29fa6845a0f3190e69382d255e8567c'  # Clé forte et cohérente
+app.config['SESSION_TYPE'] = 'filesystem'  # Stockage des sessions sur le système de fichiers
+app.config['SESSION_PERMANENT'] = True  # Sessions permanentes
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # Durée de vie en secondes (24h)
+app.config['SESSION_USE_SIGNER'] = True  # Signer les cookies de session
+app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')  # Dossier de stockage
+app.config['SESSION_COOKIE_SECURE'] = True  # Cookies sécurisés (HTTPS)
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Cookies inaccessibles en JavaScript
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Protection CSRF
+
+# Créer le dossier de sessions s'il n'existe pas
+if not os.path.exists(app.config['SESSION_FILE_DIR']):
+    os.makedirs(app.config['SESSION_FILE_DIR'])
+
+# Import et initialisation de Flask-Session
+from flask_session import Session
+sess = Session(app)
 
 # Dossier de stockage temporaire pour les PDF signés
 UPLOAD_FOLDER = 'uploads'
