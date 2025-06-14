@@ -215,10 +215,11 @@
                         return Promise.all(pagesPromises);
                     })
                     .then(() => {
-                        // Initialiser le pad de signature sur la première page
-                        if (document.querySelector('.pdf-page')) {
-                            initSignature(document.querySelector('.pdf-page'));
-                        }
+                        // Initialiser le pad de signature sur toutes les pages
+                        document.querySelectorAll('.pdf-page').forEach(page => {
+                            initSignature(page);
+                        });
+                        console.log('Pages préparées pour la signature');
                     })
                     .catch(error => {
                         console.error('Erreur lors du chargement du PDF:', error);
@@ -258,47 +259,45 @@
                 return page;
             }
             
-            // Fonction pour initialiser le mode signature
+            // Créer directement le pad de signature en haut du document
             function initSignature(pageDiv) {
-                // Activer le mode signature uniquement lorsqu'on clique sur la page
-                pageDiv.addEventListener('click', function(e) {
-                    // Si on a déjà une signature sur cette page, ne rien faire
-                    if (pageDiv.querySelector('.signature-canvas')) {
-                        return;
-                    }
+                console.log('Initialisation de la signature sur la page');
+                
+                // Créer un canvas pour la signature
+                const signCanvas = document.createElement('canvas');
+                signCanvas.className = 'signature-canvas';
+                signCanvas.style.width = '100%';
+                signCanvas.style.height = '300px'; // Hauteur fixe pour la zone de signature
+                signCanvas.style.backgroundColor = 'white';
+                signCanvas.style.border = '1px solid #ccc';
+                signCanvas.style.display = 'block';
+                signCanvas.style.margin = '10px auto';
+                signCanvas.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                
+                // Dimensions du canvas
+                signCanvas.width = window.innerWidth * 0.9; // 90% de la largeur de la fenêtre
+                signCanvas.height = 300;
+                
+                // Ajouter le canvas de signature au début du document (avant la première page)
+                if (pageDiv === document.querySelector('.pdf-page')) {
+                    // Insérer avant la première page
+                    pageDiv.parentNode.insertBefore(signCanvas, pageDiv);
                     
-                    // Récupérer les coordonnées du clic
-                    const rect = pageDiv.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
+                    // Message pour l'utilisateur
+                    const instruction = document.createElement('div');
+                    instruction.textContent = 'Signez dans la zone ci-dessous';
+                    instruction.style.textAlign = 'center';
+                    instruction.style.padding = '10px';
+                    instruction.style.fontSize = '16px';
+                    instruction.style.fontWeight = 'bold';
+                    instruction.style.backgroundColor = '#f8f9fa';
+                    pageDiv.parentNode.insertBefore(instruction, signCanvas);
                     
-                    // Récupérer le canvas de la page PDF
-                    const pdfCanvas = pageDiv.querySelector('.pdf-canvas');
-                    
-                    // Créer un canvas pour la signature
-                    const signCanvas = document.createElement('canvas');
-                    signCanvas.className = 'signature-canvas';
-                    signCanvas.style.position = 'absolute';
-                    signCanvas.style.top = y - 100 + 'px'; // Centrer autour du clic
-                    signCanvas.style.left = x - 150 + 'px';
-                    signCanvas.style.width = '300px';
-                    signCanvas.style.height = '200px';
-                    signCanvas.style.zIndex = '1000';
-                    signCanvas.style.border = '2px dashed #3498db';
-                    signCanvas.style.borderRadius = '5px';
-                    signCanvas.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-                    
-                    // Dimensions du canvas
-                    signCanvas.width = 300;
-                    signCanvas.height = 200;
-                    
-                    // Ajouter le canvas de signature à la page
-                    pageDiv.style.position = 'relative';
-                    pageDiv.appendChild(signCanvas);
+                    console.log('Canvas ajouté au document');
                     
                     // Initialiser signature pad sur ce canvas
                     signaturePad = new SignaturePad(signCanvas, {
-                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        backgroundColor: 'white',
                         penColor: 'blue',
                         velocityFilterWeight: 0.7
                     });
@@ -307,18 +306,14 @@
                     currentCanvas = signCanvas;
                     currentPage = pageDiv;
                     
-                    // Aucun événement de scroll ne peut se produire sur le canvas de signature
-                    signCanvas.addEventListener('touchstart', function(e) {
-                        e.preventDefault();
+                    // Activer le bouton d'effacement
+                    clearButton.addEventListener('click', function() {
+                        console.log('Effacement de la signature');
+                        if (signaturePad) {
+                            signaturePad.clear();
+                        }
                     });
-                });
-                
-                // Activer le bouton d'effacement
-                clearButton.addEventListener('click', function() {
-                    if (signaturePad) {
-                        signaturePad.clear();
-                    }
-                });
+                }
             }
             
             // Gérer le bouton d'envoi
