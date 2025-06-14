@@ -29,6 +29,15 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 @app.route('/', methods=['GET'])
 def index():
+    # Vérifier si un cookie de redirection existe
+    if request.cookies.get('signature_redirect'):
+        token = request.cookies.get('signature_redirect')
+        print(f"Redirection depuis cookie vers token: {token}")
+        # Supprimer le cookie dans la réponse
+        response = redirect(url_for('signature_page', token=token))
+        response.delete_cookie('signature_redirect')
+        return response
+        
     # Par défaut, afficher la page d'attente
     return render_template('attente.html')
 
@@ -123,15 +132,21 @@ def webhook_handler():
         
         print(f"Token créé: {token} pour {data['prenom']} {data['nom']}")
         
-        # Générer l'URL complète pour la page de signature
-        signature_url = url_for('signature_page', token=token, _external=True)
+        # Générer l'URL pour la page de signature
+        signature_url = url_for('signature_page', token=token)
         
-        # Retourner l'URL signée pour l'interface utilisateur
-        return jsonify({
+        # Préparer la réponse avec un cookie de redirection
+        response = jsonify({
             'status': 'success', 
-            'redirect': signature_url,
-            'message': 'Données reçues, cliquez sur le lien pour accéder à la page de signature'
+            'redirect': url_for('index', _external=True),  # Rediriger vers la racine pour compatibilité avec le workflow actuel
+            'message': 'Données reçues avec succès'
         })
+        
+        # Ajouter un cookie pour que la page racine redirige automatiquement vers la signature
+        response.set_cookie('signature_redirect', token, max_age=1800, httponly=True, secure=True, samesite='Lax')
+        
+        print(f"Cookie de redirection configuré pour le token: {token}")
+        return response
     
     except Exception as e:
         print(f"Erreur: {str(e)}")
