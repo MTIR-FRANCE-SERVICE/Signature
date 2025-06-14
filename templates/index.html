@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signature de Document</title>
+    <title>Signature de document</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
     <style>
@@ -184,6 +184,13 @@
             let signaturePad = null;
             let pageScale = 1.5; // Échelle d'affichage du PDF
             
+            // Stocker les positions de signature depuis Flask
+            let signaturePositions = JSON.parse('{{ signature_positions|safe }}');
+            
+            // Tableaux pour stocker les zones de signature et les pads
+            let signatureBoxes = [];
+            let signaturePads = [];
+
             // Références DOM
             const pdfContainer = document.getElementById('pdf-pages-container');
             const clearButton = document.getElementById('clear-button');
@@ -259,29 +266,114 @@
                 return page;
             }
             
-            // Créer directement le pad de signature en haut du document
-            function initSignature(pageDiv) {
-                console.log('Initialisation de la signature sur la page');
+            // Fonction pour créer une zone de signature à la position spécifiée
+            function createSignatureBox(pageNum, x, y, width, height, label) {
+                console.log(`Création de la zone de signature: ${label} sur page ${pageNum} aux coordonnées (${x},${y})`);
                 
-                // Créer un canvas pour la signature
+                // Rechercher la page PDF correspondante
+                const pageDiv = document.querySelector(`.pdf-page[data-page-number="${pageNum}"]`);
+                if (!pageDiv) {
+                    console.error(`Page ${pageNum} non trouvée pour la signature`);
+                    return;
+                }
+                
+                // Créer le conteneur de la zone de signature
+                const signatureBox = document.createElement('div');
+                signatureBox.className = 'signature-box';
+                signatureBox.style.position = 'absolute';
+                signatureBox.style.left = `${x}px`;
+                signatureBox.style.top = `${y}px`;
+                signatureBox.style.width = `${width}px`;
+                signatureBox.style.height = `${height}px`;
+                signatureBox.style.border = '2px dashed #007bff';
+                signatureBox.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
+                signatureBox.style.zIndex = '100';
+                signatureBox.style.cursor = 'pointer';
+                signatureBox.style.boxSizing = 'border-box';
+                signatureBox.setAttribute('data-label', label);
+                
+                // Ajouter un label à la zone de signature
+                const labelDiv = document.createElement('div');
+                labelDiv.textContent = label;
+                labelDiv.style.position = 'absolute';
+                labelDiv.style.top = '-25px';
+                labelDiv.style.left = '0';
+                labelDiv.style.color = '#007bff';
+                labelDiv.style.fontSize = '14px';
+                labelDiv.style.fontWeight = 'bold';
+                labelDiv.style.width = '100%';
+                labelDiv.style.textAlign = 'center';
+                signatureBox.appendChild(labelDiv);
+                
+                // Ajouter la boîte de signature à la page
+                pageDiv.appendChild(signatureBox);
+                
+                // Créer un canvas de signature à la position indiquée
                 const signCanvas = document.createElement('canvas');
-                signCanvas.className = 'signature-canvas';
+                signCanvas.width = width - 4; // Ajuster pour la bordure
+                signCanvas.height = height - 4;
                 signCanvas.style.width = '100%';
-                signCanvas.style.height = '300px'; // Hauteur fixe pour la zone de signature
-                signCanvas.style.backgroundColor = 'white';
-                signCanvas.style.border = '1px solid #ccc';
-                signCanvas.style.display = 'block';
-                signCanvas.style.margin = '10px auto';
-                signCanvas.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                signCanvas.style.height = '100%';
+                signCanvas.style.display = 'none'; // Caché par défaut
+                signatureBox.appendChild(signCanvas);
                 
-                // Dimensions du canvas
-                signCanvas.width = window.innerWidth * 0.9; // 90% de la largeur de la fenêtre
-                signCanvas.height = 300;
+                // Initialiser le pad de signature pour cette boîte
+                const pad = new SignaturePad(signCanvas, {
+                    backgroundColor: 'white',
+                    penColor: 'blue',
+                    velocityFilterWeight: 0.7
+                });
                 
-                // Ajouter le canvas de signature au début du document (avant la première page)
-                if (pageDiv === document.querySelector('.pdf-page')) {
-                    // Insérer avant la première page
-                    pageDiv.parentNode.insertBefore(signCanvas, pageDiv);
+                // Ajouter un événement de clic pour activer cette zone
+                signatureBox.addEventListener('click', function() {
+                    // Masquer les autres canvas actifs
+                    document.querySelectorAll('.signature-box canvas').forEach(canvas => {
+                        if (canvas !== signCanvas) canvas.style.display = 'none';
+                    });
+                    
+                    // Afficher ce canvas
+                    signatureBox.style.backgroundColor = 'white';
+                    signCanvas.style.display = 'block';
+                    
+                    // Définir cette zone comme active
+                    currentCanvas = signCanvas;
+                    signaturePad = pad;
+                });
+                
+                // Stocker les références pour utilisation ultérieure
+                signatureBoxes.push(signatureBox);
+                signaturePads.push(pad);
+                
+                return { box: signatureBox, pad: pad };
+            }
+            
+            // Fonction pour initialiser les zones de signature basées sur les positions prédéfinies
+            function initSignature() {
+                console.log('Initialisation des zones de signature');
+                console.log('Positions disponibles:', signaturePositions.length);
+                
+                // Créer les zones de signature aux positions spécifiées
+                if (signaturePositions && signaturePositions.length > 0) {
+                    // Attendre que toutes les pages soient rendues
+                    setTimeout(() => {
+                        signaturePositions.forEach((pos, index) => {
+                            createSignatureBox(pos.page, pos.x, pos.y, pos.width, pos.height, pos.label || `Signature ${index+1}`);
+                        });
+                        
+                        // Activer le bouton d'envoi uniquement si toutes les zones sont signées
+                        submitButton.addEventListener('click', function() {
+                            if (allSignaturesComplete()) {
+                                submitSignatures();
+                            } else {
+                                alert('Veuillez signer tous les emplacements indiqués avant d\'envoyer.');
+                            }
+                        });
+                    }, 1000); // Délai pour s'assurer que les pages sont rendues
+                } else {
+                    // Fallback: créer une zone de signature générique au début
+                    console.log('Aucune position de signature définie, création d’une zone par défaut');
+                    
+                    const container = document.getElementById('pdf-container-wrapper');
                     
                     // Message pour l'utilisateur
                     const instruction = document.createElement('div');
@@ -291,9 +383,26 @@
                     instruction.style.fontSize = '16px';
                     instruction.style.fontWeight = 'bold';
                     instruction.style.backgroundColor = '#f8f9fa';
-                    pageDiv.parentNode.insertBefore(instruction, signCanvas);
+                    instruction.style.margin = '10px 0';
+                    container.prepend(instruction);
                     
-                    console.log('Canvas ajouté au document');
+                    // Créer un canvas pour la signature
+                    const signCanvas = document.createElement('canvas');
+                    signCanvas.className = 'signature-canvas';
+                    signCanvas.style.width = '100%';
+                    signCanvas.style.height = '200px';
+                    signCanvas.style.backgroundColor = 'white';
+                    signCanvas.style.border = '1px solid #ccc';
+                    signCanvas.style.display = 'block';
+                    signCanvas.style.margin = '10px auto';
+                    signCanvas.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                    
+                    // Dimensions du canvas
+                    signCanvas.width = container.clientWidth - 40;
+                    signCanvas.height = 200;
+                    
+                    // Ajouter le canvas de signature au début du conteneur
+                    container.insertBefore(signCanvas, instruction.nextSibling);
                     
                     // Initialiser signature pad sur ce canvas
                     signaturePad = new SignaturePad(signCanvas, {
@@ -304,64 +413,114 @@
                     
                     // Conserver les références
                     currentCanvas = signCanvas;
-                    currentPage = pageDiv;
-                    
-                    // Activer le bouton d'effacement
-                    clearButton.addEventListener('click', function() {
-                        console.log('Effacement de la signature');
-                        if (signaturePad) {
-                            signaturePad.clear();
-                        }
-                    });
+                    signatureBoxes.push(null); // Pour garder une structure cohérente
+                    signaturePads.push(signaturePad);
                 }
+                
+                // Activer le bouton d'effacement
+                clearButton.addEventListener('click', function() {
+                    console.log('Effacement de la signature');
+                    if (signaturePad) {
+                        signaturePad.clear();
+                    }
+                });
             }
             
-            // Gérer le bouton d'envoi
-            submitButton.addEventListener('click', function() {
-                if (!signaturePad || signaturePad.isEmpty()) {
-                    alert("Veuillez signer le document avant d'envoyer");
-                    return;
+            // Vérifier si toutes les signatures sont complétées
+            function allSignaturesComplete() {
+                if (!signaturePads || signaturePads.length === 0) {
+                    return signaturePad && !signaturePad.isEmpty();
                 }
                 
-                // Obtenir les données de signature
-                const signatureData = signaturePad.toDataURL('image/png');
+                return signaturePads.every(pad => !pad.isEmpty());
+            }
+            
+            // Fonction de soumission des signatures
+            function submitSignatures() {
+                console.log('Préparation de l\'envoi des signatures...');
                 
-                // Envoyer au serveur
-                fetch('/sign/{{ token }}', {
+                // Préparer les données à envoyer
+                let signatureData = {};
+                
+                if (signaturePads.length > 0) {
+                    // Cas avec plusieurs positions de signature prédéfinies
+                    signatureData.signatures = [];
+                    
+                    signaturePads.forEach((pad, index) => {
+                        if (!pad || pad.isEmpty()) {
+                            console.log(`Signature ${index} est vide`);
+                            return;
+                        }
+                        
+                        // Récupérer les données de signature et position
+                        const signature = pad.toDataURL('image/png');
+                        let position = null;
+                        
+                        if (signaturePositions && signaturePositions[index]) {
+                            position = signaturePositions[index];
+                        }
+                        
+                        signatureData.signatures.push({
+                            image: signature,
+                            position: position,
+                            index: index
+                        });
+                    });
+                    
+                    console.log(`${signatureData.signatures.length} signatures prêtes pour l'envoi`);
+                } else {
+                    // Cas avec une seule signature (ancien mode)
+                    if (!signaturePad || signaturePad.isEmpty()) {
+                        alert('Veuillez signer le document avant d\'envoyer');
+                        return;
+                    }
+                    
+                    signatureData.signature = signaturePad.toDataURL('image/png');
+                }
+                
+                console.log('Envoi des signatures au serveur...');
+                
+                // Envoyer les signatures au serveur
+                fetch(`/sign/{{ token }}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ 
-                        signature: signatureData
-                    }),
+                    body: JSON.stringify(signatureData)
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        // Afficher le message de succès
-                        successMessage.style.display = 'block';
-                        
-                        // Cacher les contrôles
-                        document.querySelector('.controls').style.display = 'none';
-                        
-                        // Désactiver le pad de signature
-                        if (signaturePad) {
-                            signaturePad.off();
-                        }
-                        
-                        // Fermer le message après 3 secondes
-                        setTimeout(function() {
-                            successMessage.style.display = 'none';
-                        }, 3000);
+                        alert('Signature(s) enregistrée(s) avec succès');
+                        // Rediriger vers une page de confirmation ou fermer l'application
+                        window.location.href = '/';
                     } else {
-                        alert("Erreur: " + data.message);
+                        alert('Erreur lors de l\'enregistrement de la signature: ' + data.message);
                     }
                 })
                 .catch(error => {
                     console.error('Erreur:', error);
-                    alert("Une erreur s'est produite lors de l'envoi de la signature.");
+                    alert('Une erreur est survenue lors de l\'envoi de la signature');
                 });
+            }
+            
+            // Gérer le bouton d'envoi pour le mode sans positions prédéfinies
+            submitButton.addEventListener('click', function() {
+                if (signaturePositions && signaturePositions.length > 0) {
+                    // Ce cas est géré dans initSignature avec allSignaturesComplete
+                    if (allSignaturesComplete()) {
+                        submitSignatures();
+                    } else {
+                        alert('Veuillez signer tous les emplacements indiqués avant d\'envoyer.');
+                    }
+                } else {
+                    // Mode simple avec une seule signature
+                    if (!signaturePad || signaturePad.isEmpty()) {
+                        alert('Veuillez signer le document avant d\'envoyer');
+                        return;
+                    }
+                    submitSignatures();
+                }
             });
         });
     </script>
