@@ -197,10 +197,9 @@ def sign_pdf(token):
     with open(token_file, 'r') as f:
         token_data = json.load(f)
     
-    # Vérifier les données requêtes
+    # Récupérer les données JSON envoyées
     data = request.json
     signature_data = data.get('signature')
-    positions = data.get('positions', [])
     
     if not signature_data:
         return jsonify({'status': 'error', 'message': 'Aucune signature fournie'})
@@ -230,15 +229,10 @@ def sign_pdf(token):
         with open(pdf_path, 'rb') as src, open(signed_pdf_path, 'wb') as dst:
             dst.write(src.read())
         
-        # Enregistrer les positions de signature dans les données du token
-        if positions:
-            token_data['signature_positions'] = positions
-            print(f"Positions de signature enregistrées: {len(positions)} position(s)")
-        
-        # Mettre à jour les données du token pour inclure le chemin du PDF signé
-        token_data['signed_pdf'] = signed_pdf_path
+        # Mettre à jour les données de signature dans le fichier JSON
         token_data['signature_path'] = signature_image_path
-        
+        token_data['signed_pdf'] = signed_pdf_path
+        token_data['date_signature'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')       
         # Enregistrer les données mises à jour
         with open(token_file, 'w') as f:
             json.dump(token_data, f)
