@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 import base64
 from io import BytesIO
-from PyPDF2 import PdfReader, PdfWriter
+from PyPDF2 import PdfFileReader, PdfFileWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from PIL import Image
@@ -118,15 +118,15 @@ def sign_pdf():
 def add_signature_to_pdf(pdf_path, signature_path, output_path):
     """Ajoute une signature à la dernière page d'un PDF"""
     # Ouvrir le PDF original
-    pdf_reader = PdfReader(pdf_path)
-    pdf_writer = PdfWriter()
+    pdf_reader = PdfFileReader(open(pdf_path, 'rb'))
+    pdf_writer = PdfFileWriter()
     
     # Copier toutes les pages sauf la dernière
-    for i in range(len(pdf_reader.pages) - 1):
-        pdf_writer.add_page(pdf_reader.pages[i])
+    for i in range(pdf_reader.getNumPages() - 1):
+        pdf_writer.addPage(pdf_reader.getPage(i))
     
     # Préparer la dernière page avec signature
-    last_page = pdf_reader.pages[-1]
+    last_page = pdf_reader.getPage(pdf_reader.getNumPages() - 1)
     
     # Créer un PDF temporaire avec la signature
     packet = BytesIO()
@@ -136,11 +136,11 @@ def add_signature_to_pdf(pdf_path, signature_path, output_path):
     packet.seek(0)
     
     # Créer un nouveau PDF avec cette signature
-    signature_pdf = PdfReader(packet)
+    signature_pdf = PdfFileReader(packet)
     
     # Fusionner la signature avec la dernière page
-    last_page.merge_page(signature_pdf.pages[0])
-    pdf_writer.add_page(last_page)
+    last_page.mergePage(signature_pdf.getPage(0))
+    pdf_writer.addPage(last_page)
     
     # Sauvegarder le PDF final
     with open(output_path, 'wb') as output_file:
