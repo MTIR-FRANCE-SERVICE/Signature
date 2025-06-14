@@ -1,7 +1,6 @@
 Flask==2.0.1
 PyPDF2==1.26.0
-reportlab==3.5.68
 requests==2.28.1
 gunicorn==20.1.0
 flask-cors==3.0.10
-# Pas de Pillow, nous allons modifier le code pour ne pas en avoir besoin
+# Utilisation de packages précompilés uniquement

@@ -6,9 +6,7 @@ from datetime import datetime
 import base64
 from io import BytesIO
 from PyPDF2 import PdfFileReader, PdfFileWriter
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-# Pas de Pillow
+# Version simplifiée sans reportlab
 
 app = Flask(__name__)
 CORS(app)  # Active CORS pour toutes les routes
@@ -87,22 +85,22 @@ def sign_pdf():
         return jsonify({'status': 'error', 'message': 'Données manquantes'})
     
     try:
-        # Convertir la signature base64 directement en fichier
+        # Version simplifiée: sauvegarder uniquement la signature
         signature_data = signature_data.split(',')[1]
         
-        # Créer un fichier temporaire pour la signature
+        # Créer un fichier pour la signature
         signature_path = os.path.join(UPLOAD_FOLDER, f"signature_{client_data['prenom']}_{client_data['nom']}.png")
         
-        # Écrire les données base64 décodées directement dans le fichier
+        # Écrire les données base64 décodées dans le fichier
         with open(signature_path, 'wb') as f:
             f.write(base64.b64decode(signature_data))
         
-        # Ajouter la signature au PDF
+        # Copier le PDF original comme document final
+        # Dans une version complète, on fusionnerait la signature dans le PDF
         output_pdf = os.path.join(UPLOAD_FOLDER, f"contrat-{client_data['prenom']}-{client_data['nom']}.pdf")
-        add_signature_to_pdf(pdf_path, signature_path, output_pdf)
-        
-        # Dans une application réelle, ici vous enverriez le fichier à Google Drive
-        # Pour simplicité, nous simulons juste cette étape
+        with open(pdf_path, 'rb') as src_pdf:
+            with open(output_pdf, 'wb') as dest_pdf:
+                dest_pdf.write(src_pdf.read())
         
         # Nettoyer la session
         session.pop('client_data', None)
@@ -111,42 +109,16 @@ def sign_pdf():
         return jsonify({
             'status': 'ok',
             'client': f"{client_data['prenom']} {client_data['nom']}",
-            'message': 'Contrat signé avec succès'
+            'message': 'Signature enregistrée avec succès',
+            'signature_path': signature_path,
+            'pdf_path': output_pdf
         })
     
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
 
-def add_signature_to_pdf(pdf_path, signature_path, output_path):
-    """Ajoute une signature à la dernière page d'un PDF"""
-    # Ouvrir le PDF original
-    pdf_reader = PdfFileReader(open(pdf_path, 'rb'))
-    pdf_writer = PdfFileWriter()
-    
-    # Copier toutes les pages sauf la dernière
-    for i in range(pdf_reader.getNumPages() - 1):
-        pdf_writer.addPage(pdf_reader.getPage(i))
-    
-    # Préparer la dernière page avec signature
-    last_page = pdf_reader.getPage(pdf_reader.getNumPages() - 1)
-    
-    # Créer un PDF temporaire avec la signature
-    packet = BytesIO()
-    c = canvas.Canvas(packet, pagesize=letter)
-    c.drawImage(signature_path, 100, 100, width=150, height=50)  # Ajuster selon besoin
-    c.save()
-    packet.seek(0)
-    
-    # Créer un nouveau PDF avec cette signature
-    signature_pdf = PdfFileReader(packet)
-    
-    # Fusionner la signature avec la dernière page
-    last_page.mergePage(signature_pdf.getPage(0))
-    pdf_writer.addPage(last_page)
-    
-    # Sauvegarder le PDF final
-    with open(output_path, 'wb') as output_file:
-        pdf_writer.write(output_file)
+# La fonction add_signature_to_pdf a été supprimée car elle nécessitait reportlab
+# Elle est remplacée par une simple copie de fichier dans la fonction sign_pdf
 
 if __name__ == '__main__':
     # Utiliser le port défini par l'environnement pour Render
