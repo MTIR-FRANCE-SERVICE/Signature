@@ -134,7 +134,7 @@
 
         <div class="pdf-container">
             <h2>Document à Signer</h2>
-            <iframe id="pdf-viewer" src="/view-pdf"></iframe>
+            <iframe id="pdf-viewer" src="/view-pdf/{{ token }}"></iframe>
         </div>
 
         <div class="signature-container">
@@ -188,7 +188,7 @@
                 const signatureData = signaturePad.toDataURL();
 
                 // Envoyer la signature au serveur
-                fetch('/sign', {
+                fetch('/sign/{{ token }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -197,7 +197,7 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === 'ok') {
+                    if (data.status === 'success') {
                         // Afficher le message de succès
                         document.getElementById('success-message').style.display = 'block';
                         
