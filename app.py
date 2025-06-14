@@ -20,12 +20,18 @@ if not os.path.exists(UPLOAD_FOLDER):
 @app.route('/', methods=['GET'])
 def index():
     # Si aucune donnée en session, retourner un message d'attente
+    print(f"Session actuelle: {dict(session)}")  # Log l'état de la session
+    
     if not session.get('client_data'):
+        print("Aucune donnée client en session, affichage de l'attente")
         return render_template('attente.html')
     
     # Récupérer les données client stockées en session
     client_data = session.get('client_data')
     pdf_path = session.get('pdf_path')
+    
+    print(f"Données client trouvées: {client_data['prenom']} {client_data['nom']}")
+    print(f"PDF path: {pdf_path}, Existe: {os.path.exists(pdf_path)}")
     
     return render_template('index.html', client=client_data, pdf_path=pdf_path)
 
@@ -33,36 +39,56 @@ def index():
 def webhook_handler():
     # Récupérer les données du webhook
     data = request.json
+    print(f"Données reçues: {data}")  # Log les données reçues
     
-    # Vérifier que toutes les données nécessaires sont présentes
-    if not all(key in data for key in ['prenom', 'nom', 'email', 'telephone']):
-        return jsonify({'status': 'error', 'message': 'Données incomplètes'})
+    # Rendre le champ téléphone optionnel
+    required_fields = ['prenom', 'nom', 'email']
+    if not all(key in data for key in required_fields):
+        missing = [f for f in required_fields if f not in data]
+        print(f"Champs manquants: {missing}")  # Log les champs manquants
+        return jsonify({'status': 'error', 'message': 'Données incomplètes: ' + ', '.join(missing)})
+    
+    # Ajouter un numéro de téléphone par défaut s'il est manquant
+    if 'telephone' not in data:
+        data['telephone'] = 'Non spécifié'
     
     # Télécharger le PDF
     pdf_url = "https://docs.google.com/spreadsheets/d/1PDQD2OPBlrVJ26qrfEXJGrviyRnVM_v41vSxhMzGm0Y/export?format=pdf&gid=23261508"
-    response = requests.get(pdf_url)
+    print(f"Téléchargement du PDF depuis: {pdf_url}")
     
-    if response.status_code != 200:
-        return jsonify({'status': 'error', 'message': 'Échec du téléchargement du PDF'})
-    
-    # Sauvegarder temporairement le PDF
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    pdf_filename = f"{timestamp}_{data['prenom']}_{data['nom']}.pdf"
-    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_filename)
-    
-    with open(pdf_path, 'wb') as f:
-        f.write(response.content)
-    
-    # Stocker les données dans la session
-    session['client_data'] = data
-    session['pdf_path'] = pdf_path
-    
-    # Retourner une URL à rediriger pour l'interface utilisateur
-    return jsonify({
-        'status': 'success', 
-        'redirect': url_for('index'), 
-        'message': 'Données reçues, veuillez consulter l\'interface utilisateur'
-    })
+    try:
+        response = requests.get(pdf_url)
+        
+        if response.status_code != 200:
+            print(f"Échec du téléchargement: status {response.status_code}")
+            return jsonify({'status': 'error', 'message': f'Échec du téléchargement du PDF (code: {response.status_code})'})
+        
+        # Sauvegarder temporairement le PDF
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        pdf_filename = f"{timestamp}_{data['prenom']}_{data['nom']}.pdf"
+        pdf_path = os.path.join(UPLOAD_FOLDER, pdf_filename)
+        
+        with open(pdf_path, 'wb') as f:
+            f.write(response.content)
+        
+        print(f"PDF sauvegardé: {pdf_path}")
+        
+        # Stocker les données dans la session
+        session['client_data'] = data
+        session['pdf_path'] = pdf_path
+        session.modified = True  # Forcer la sauvegarde de la session
+        
+        print(f"Session sauvegardée: {session['client_data']}, PDF: {session['pdf_path']}")
+        
+        # Retourner une URL à rediriger pour l'interface utilisateur
+        return jsonify({
+            'status': 'success', 
+            'redirect': url_for('index'), 
+            'message': 'Données reçues, veuillez consulter l\'interface utilisateur'
+        })
+    except Exception as e:
+        print(f"Erreur: {str(e)}")
+        return jsonify({'status': 'error', 'message': f'Erreur lors du téléchargement: {str(e)}'})
 
 @app.route('/view-pdf')
 def view_pdf():
