@@ -8,7 +8,7 @@ from io import BytesIO
 from PyPDF2 import PdfFileReader, PdfFileWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from PIL import Image
+# Pas de Pillow
 
 app = Flask(__name__)
 CORS(app)  # Active CORS pour toutes les routes
@@ -87,13 +87,15 @@ def sign_pdf():
         return jsonify({'status': 'error', 'message': 'Données manquantes'})
     
     try:
-        # Convertir la signature base64 en image
+        # Convertir la signature base64 directement en fichier
         signature_data = signature_data.split(',')[1]
-        signature_image = Image.open(BytesIO(base64.b64decode(signature_data)))
         
-        # Sauvegarder temporairement la signature
+        # Créer un fichier temporaire pour la signature
         signature_path = os.path.join(UPLOAD_FOLDER, f"signature_{client_data['prenom']}_{client_data['nom']}.png")
-        signature_image.save(signature_path)
+        
+        # Écrire les données base64 décodées directement dans le fichier
+        with open(signature_path, 'wb') as f:
+            f.write(base64.b64decode(signature_data))
         
         # Ajouter la signature au PDF
         output_pdf = os.path.join(UPLOAD_FOLDER, f"contrat-{client_data['prenom']}-{client_data['nom']}.pdf")
