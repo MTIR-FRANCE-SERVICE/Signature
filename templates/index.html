@@ -14,6 +14,8 @@
             background-color: #f5f5f5;
             color: #333;
             overflow-x: hidden;
+            height: 100vh;
+            width: 100vw;
         }
         
         .container {
@@ -53,6 +55,9 @@
         #pdf-pages-container {
             width: 100%;
             background-color: #525659;
+            overflow-y: auto;
+            height: 100vh;
+            padding: 20px 0;
         }
         
         .pdf-page {
@@ -79,6 +84,7 @@
             padding: 10px 20px;
             display: flex;
             justify-content: center;
+            pointer-events: auto;
         }
         
         /* Style pour les boutons */
@@ -252,38 +258,60 @@
                 return page;
             }
             
-            // Initialiser le pad de signature
+            // Fonction pour initialiser le mode signature
             function initSignature(pageDiv) {
-                // Récupérer le canvas de la page PDF
-                const pdfCanvas = pageDiv.querySelector('.pdf-canvas');
-                
-                // Créer un canvas pour la signature par-dessus le PDF
-                const signCanvas = document.createElement('canvas');
-                signCanvas.className = 'signature-canvas';
-                signCanvas.style.position = 'absolute';
-                signCanvas.style.top = '0';
-                signCanvas.style.left = '0';
-                signCanvas.style.pointerEvents = 'all';
-                signCanvas.style.touchAction = 'none'; // Important pour les mobiles
-                
-                // Configurer le canvas de signature avec les mêmes dimensions
-                signCanvas.width = pdfCanvas.width;
-                signCanvas.height = pdfCanvas.height;
-                
-                // Ajouter le canvas de signature au-dessus du PDF
-                pageDiv.style.position = 'relative';
-                pageDiv.appendChild(signCanvas);
-                
-                // Initialiser signature pad sur ce canvas
-                signaturePad = new SignaturePad(signCanvas, {
-                    backgroundColor: 'rgba(255, 255, 255, 0)', // Transparent
-                    penColor: 'blue',
-                    velocityFilterWeight: 0.7
+                // Activer le mode signature uniquement lorsqu'on clique sur la page
+                pageDiv.addEventListener('click', function(e) {
+                    // Si on a déjà une signature sur cette page, ne rien faire
+                    if (pageDiv.querySelector('.signature-canvas')) {
+                        return;
+                    }
+                    
+                    // Récupérer les coordonnées du clic
+                    const rect = pageDiv.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    
+                    // Récupérer le canvas de la page PDF
+                    const pdfCanvas = pageDiv.querySelector('.pdf-canvas');
+                    
+                    // Créer un canvas pour la signature
+                    const signCanvas = document.createElement('canvas');
+                    signCanvas.className = 'signature-canvas';
+                    signCanvas.style.position = 'absolute';
+                    signCanvas.style.top = y - 100 + 'px'; // Centrer autour du clic
+                    signCanvas.style.left = x - 150 + 'px';
+                    signCanvas.style.width = '300px';
+                    signCanvas.style.height = '200px';
+                    signCanvas.style.zIndex = '1000';
+                    signCanvas.style.border = '2px dashed #3498db';
+                    signCanvas.style.borderRadius = '5px';
+                    signCanvas.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                    
+                    // Dimensions du canvas
+                    signCanvas.width = 300;
+                    signCanvas.height = 200;
+                    
+                    // Ajouter le canvas de signature à la page
+                    pageDiv.style.position = 'relative';
+                    pageDiv.appendChild(signCanvas);
+                    
+                    // Initialiser signature pad sur ce canvas
+                    signaturePad = new SignaturePad(signCanvas, {
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        penColor: 'blue',
+                        velocityFilterWeight: 0.7
+                    });
+                    
+                    // Conserver les références
+                    currentCanvas = signCanvas;
+                    currentPage = pageDiv;
+                    
+                    // Aucun événement de scroll ne peut se produire sur le canvas de signature
+                    signCanvas.addEventListener('touchstart', function(e) {
+                        e.preventDefault();
+                    });
                 });
-                
-                // Conserver les références
-                currentCanvas = signCanvas;
-                currentPage = pageDiv;
                 
                 // Activer le bouton d'effacement
                 clearButton.addEventListener('click', function() {
