@@ -270,8 +270,21 @@
             function createSignatureBox(pageNum, x, y, width, height, label) {
                 console.log(`Création de la zone de signature: ${label} sur page ${pageNum} aux coordonnées (${x},${y})`);
                 
-                // Rechercher la page PDF correspondante
-                const pageDiv = document.querySelector(`.pdf-page[data-page-number="${pageNum}"]`);
+                // Attention: PDF.js utilise des indices commençant à 1, mais dans notre cas on index à partir de 1 aussi
+                // Rechercher la page PDF correspondante - en testant plusieurs méthodes de sélection
+                let pageDiv = document.querySelector(`.pdf-page[data-page-number="${pageNum}"]`);
+                
+                // Deuxième tentative: sélectionner par position dans l'ordre des pages
+                if (!pageDiv) {
+                    // Les pages sont indexées à partir de 1 dans notre DOM
+                    const pages = document.querySelectorAll('.pdf-page');
+                    // Si pageNum est 1, on prend la première page (index 0)
+                    if (pageNum > 0 && pageNum <= pages.length) {
+                        pageDiv = pages[pageNum - 1];
+                        console.log(`Page ${pageNum} trouvée par index d'élément: ${pageNum-1}`);
+                    }
+                }
+                
                 if (!pageDiv) {
                     console.error(`Page ${pageNum} non trouvée pour la signature`);
                     return;
@@ -347,28 +360,60 @@
                 return { box: signatureBox, pad: pad };
             }
             
+            // Variable pour suivre si les zones de signature ont été créées
+            let signatureZonesCreated = false;
+            
+            // Fonction pour vérifier si toutes les pages sont rendues
+            function checkPagesReady() {
+                const pagesLoaded = document.querySelectorAll('.pdf-page').length;
+                console.log(`Pages chargées: ${pagesLoaded} - Pages attendues: ${pdfDoc ? pdfDoc.numPages : 'unknown'}`);
+                
+                // Vérifier si toutes les pages sont chargées
+                if (pdfDoc && pagesLoaded >= pdfDoc.numPages) {
+                    console.log('Toutes les pages sont rendues, création des zones de signature');
+                    createSignatureZones();
+                    return true;
+                }
+                return false;
+            }
+            
+            // Créer les zones de signature une fois toutes les pages rendues
+            function createSignatureZones() {
+                if (signatureZonesCreated) return; // Éviter la duplication
+                signatureZonesCreated = true;
+                
+                if (signaturePositions && signaturePositions.length > 0) {
+                    signaturePositions.forEach((pos, index) => {
+                        createSignatureBox(pos.page, pos.x, pos.y, pos.width, pos.height, pos.label || `Signature ${index+1}`);
+                    });
+                    
+                    // Activer le bouton d'envoi uniquement si toutes les zones sont signées
+                    submitButton.addEventListener('click', function() {
+                        if (allSignaturesComplete()) {
+                            submitSignatures();
+                        } else {
+                            alert('Veuillez signer tous les emplacements indiqués avant d\'envoyer.');
+                        }
+                    });
+                }
+            }
+            
             // Fonction pour initialiser les zones de signature basées sur les positions prédéfinies
             function initSignature() {
                 console.log('Initialisation des zones de signature');
-                console.log('Positions disponibles:', signaturePositions.length);
                 
-                // Créer les zones de signature aux positions spécifiées
                 if (signaturePositions && signaturePositions.length > 0) {
-                    // Attendre que toutes les pages soient rendues
-                    setTimeout(() => {
-                        signaturePositions.forEach((pos, index) => {
-                            createSignatureBox(pos.page, pos.x, pos.y, pos.width, pos.height, pos.label || `Signature ${index+1}`);
-                        });
-                        
-                        // Activer le bouton d'envoi uniquement si toutes les zones sont signées
-                        submitButton.addEventListener('click', function() {
-                            if (allSignaturesComplete()) {
-                                submitSignatures();
-                            } else {
-                                alert('Veuillez signer tous les emplacements indiqués avant d\'envoyer.');
+                    console.log('Positions disponibles:', signaturePositions.length);
+                    
+                    // Vérifier immédiatement
+                    if (!checkPagesReady()) {
+                        // Mettre en place un intervalle pour vérifier régulièrement si les pages sont prêtes
+                        const checkInterval = setInterval(() => {
+                            if (checkPagesReady()) {
+                                clearInterval(checkInterval);
                             }
-                        });
-                    }, 1000); // Délai pour s'assurer que les pages sont rendues
+                        }, 500);
+                    }
                 } else {
                     // Fallback: créer une zone de signature générique au début
                     console.log('Aucune position de signature définie, création d’une zone par défaut');
@@ -379,35 +424,29 @@
                     const instruction = document.createElement('div');
                     instruction.textContent = 'Signez dans la zone ci-dessous';
                     instruction.style.textAlign = 'center';
-                    instruction.style.padding = '10px';
-                    instruction.style.fontSize = '16px';
+                    instruction.style.marginTop = '20px';
                     instruction.style.fontWeight = 'bold';
-                    instruction.style.backgroundColor = '#f8f9fa';
-                    instruction.style.margin = '10px 0';
-                    container.prepend(instruction);
+                    container.appendChild(instruction);
                     
-                    // Créer un canvas pour la signature
-                    const signCanvas = document.createElement('canvas');
-                    signCanvas.className = 'signature-canvas';
-                    signCanvas.style.width = '100%';
-                    signCanvas.style.height = '200px';
-                    signCanvas.style.backgroundColor = 'white';
-                    signCanvas.style.border = '1px solid #ccc';
-                    signCanvas.style.display = 'block';
-                    signCanvas.style.margin = '10px auto';
-                    signCanvas.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                    // Créer le canvas de signature
+                    const canvasWrapper = document.createElement('div');
+                    canvasWrapper.style.margin = '20px auto';
+                    canvasWrapper.style.border = '1px solid #000';
+                    canvasWrapper.style.width = '300px';
+                    canvasWrapper.style.height = '150px';
+                    canvasWrapper.style.backgroundColor = '#fff';
                     
-                    // Dimensions du canvas
-                    signCanvas.width = container.clientWidth - 40;
-                    signCanvas.height = 200;
+                    const canvas = document.createElement('canvas');
+                    canvas.id = 'signature-canvas';
+                    canvas.width = 300;
+                    canvas.height = 150;
+                    canvasWrapper.appendChild(canvas);
+                    container.appendChild(canvasWrapper);
                     
-                    // Ajouter le canvas de signature au début du conteneur
-                    container.insertBefore(signCanvas, instruction.nextSibling);
-                    
-                    // Initialiser signature pad sur ce canvas
-                    signaturePad = new SignaturePad(signCanvas, {
-                        backgroundColor: 'white',
-                        penColor: 'blue',
+                    // Initialiser SignaturePad
+                    signaturePad = new SignaturePad(canvas, {
+                        backgroundColor: 'rgba(255, 255, 255, 0)',
+                        penColor: 'black',
                         velocityFilterWeight: 0.7
                     });
                     
