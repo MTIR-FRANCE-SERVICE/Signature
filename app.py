@@ -94,8 +94,13 @@ def webhook_handler():
     if 'telephone' not in data:
         data['telephone'] = 'Non spécifié'
     
-    # Télécharger le PDF
-    pdf_url = "https://docs.google.com/spreadsheets/d/1PDQD2OPBlrVJ26qrfEXJGrviyRnVM_v41vSxhMzGm0Y/export?format=pdf&gid=23261508"
+    # Vérifier si un lien PDF est fourni dans les données
+    pdf_url = data.get('pdf_url')
+    if not pdf_url:
+        # Utiliser l'URL par défaut si aucune n'est fournie
+        pdf_url = "https://docs.google.com/spreadsheets/d/1PDQD2OPBlrVJ26qrfEXJGrviyRnVM_v41vSxhMzGm0Y/export?format=pdf&gid=23261508"
+        print(f"Aucun lien PDF fourni, utilisation de l'URL par défaut")
+    
     print(f"Téléchargement du PDF depuis: {pdf_url}")
     
     try:
