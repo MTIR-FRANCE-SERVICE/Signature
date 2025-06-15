@@ -186,7 +186,10 @@
             let pageScale = 1.5; // Échelle d'affichage du PDF
             
             // Stocker les positions de signature depuis Flask
-            let signaturePositions = JSON.parse('{{ signature_positions|safe }}');
+            let signaturePositions = {{ signature_positions|safe }};
+            
+            // Vérifier et logger les positions reçues
+            console.log('Positions de signature reçues:', signaturePositions);
             
             // Tableaux pour stocker les zones de signature et les pads
             let signatureBoxes = [];
@@ -343,8 +346,8 @@
                 
                 // Créer un canvas de signature à la position indiquée
                 const signCanvas = document.createElement('canvas');
-                signCanvas.width = width - 4; // Ajuster pour la bordure
-                signCanvas.height = height - 4;
+                signCanvas.width = scaledWidth - 4; // Ajuster pour la bordure en utilisant les valeurs à l'échelle
+                signCanvas.height = scaledHeight - 4;
                 signCanvas.style.width = '100%';
                 signCanvas.style.height = '100%';
                 signCanvas.style.display = 'block'; // Visible par défaut
@@ -405,9 +408,12 @@
                 if (signatureZonesCreated) return; // Éviter la duplication
                 signatureZonesCreated = true;
                 
+                console.log('Début de la création des zones de signature');
                 if (signaturePositions && signaturePositions.length > 0) {
+                    console.log(`${signaturePositions.length} positions de signature trouvées`);
                     signaturePositions.forEach((pos, index) => {
-                        createSignatureBox(pos.page, pos.x, pos.y, pos.width, pos.height, pos.label || `Signature ${index+1}`);
+                        console.log(`Création de la zone ${index}:`, pos);
+                        createSignatureBox(pos.page || 1, pos.x, pos.y, pos.width || 200, pos.height || 100, pos.label || `Signature ${index+1}`);
                     });
                     
                     // Activer le bouton d'envoi uniquement si toutes les zones sont signées
