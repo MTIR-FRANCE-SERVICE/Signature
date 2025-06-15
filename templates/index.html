@@ -182,6 +182,7 @@
             let currentCanvas = null;
             let currentPage = null;
             let signaturePad = null;
+            let activeSignaturePad = null; // Pour suivre la signature active
             let pageScale = 1.5; // Échelle d'affichage du PDF
             
             // Stocker les positions de signature depuis Flask
@@ -266,6 +267,15 @@
                 return page;
             }
             
+            // Facteur de mise à l'échelle pour ajuster les coordonnées au PDF affiché
+            function getScaleFactor(pageDiv) {
+                // La largeur réelle des pages PDF standard est généralement 595pt (8.5" x 72dpi)
+                // Nous devons comparer avec la largeur affichée à l'écran
+                const displayedWidth = pageDiv.clientWidth;
+                const standardWidth = 595; // Taille standard d'une page PDF format A4 en points
+                return displayedWidth / standardWidth;
+            }
+            
             // Fonction pour créer une zone de signature à la position spécifiée
             function createSignatureBox(pageNum, x, y, width, height, label) {
                 console.log(`Création de la zone de signature: ${label} sur page ${pageNum} aux coordonnées (${x},${y})`);
@@ -290,14 +300,24 @@
                     return;
                 }
                 
+                // Calculer le facteur d'échelle pour ajuster la position
+                const scaleFactor = getScaleFactor(pageDiv);
+                console.log(`Facteur d'échelle pour la page ${pageNum}: ${scaleFactor}`);
+                
+                // Ajuster les coordonnées avec le facteur d'échelle
+                const scaledX = x * scaleFactor;
+                const scaledY = y * scaleFactor;
+                const scaledWidth = width * scaleFactor;
+                const scaledHeight = height * scaleFactor;
+                
                 // Créer le conteneur de la zone de signature
                 const signatureBox = document.createElement('div');
                 signatureBox.className = 'signature-box';
                 signatureBox.style.position = 'absolute';
-                signatureBox.style.left = `${x}px`;
-                signatureBox.style.top = `${y}px`;
-                signatureBox.style.width = `${width}px`;
-                signatureBox.style.height = `${height}px`;
+                signatureBox.style.left = `${scaledX}px`;
+                signatureBox.style.top = `${scaledY}px`;
+                signatureBox.style.width = `${scaledWidth}px`;
+                signatureBox.style.height = `${scaledHeight}px`;
                 signatureBox.style.border = '2px dashed #007bff';
                 signatureBox.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
                 signatureBox.style.zIndex = '100';
@@ -330,34 +350,37 @@
                 signCanvas.style.display = 'block'; // Visible par défaut
                 signatureBox.appendChild(signCanvas);
                 
-                // Initialiser le pad de signature pour cette boîte
-                const pad = new SignaturePad(signCanvas, {
-                    backgroundColor: 'white',
-                    penColor: 'blue',
-                    velocityFilterWeight: 0.7
+                // Créer un pad de signature pour cette zone
+                const signaturePad = new SignaturePad(signCanvas, {
+                    backgroundColor: 'rgba(255, 255, 255, 0)',
+                    penColor: 'black'
                 });
                 
-                // Ajouter un événement de clic
-                signatureBox.addEventListener('click', function(e) {
-                    e.stopPropagation();
+                // Gestionnaire d'événement pour activer cette zone de signature
+                signatureBox.addEventListener('click', function() {
+                    console.log(`Zone de signature activée`);
                     
-                    // Ne pas cacher les canvas mais juste désactiver les autres
-                    document.querySelectorAll('.signature-box').forEach(box => {
-                        box.classList.remove('active');
+                    // Rendre tous les canvas visibles
+                    document.querySelectorAll('.signature-canvas').forEach(canvas => {
+                        canvas.style.display = 'block';
                     });
-                    signatureBox.classList.add('active');
                     
-                    // Définir ce pad comme signature active
-                    activeSignaturePad = pad;
+                    // Mettre en évidence la zone active
+                    signatureBoxes.forEach(box => {
+                        if (box) box.style.border = '2px dashed #007bff';
+                    });
                     
-                    console.log('Zone de signature activée : ' + (label || 'sans label'));
+                    signatureBox.style.border = '2px solid #ff0000';
+                    currentCanvas = signCanvas;
+                    // Mise à jour de la variable activeSignaturePad pour le bouton Effacer
+                    activeSignaturePad = signaturePad;
                 });
                 
-                // Stocker les références pour utilisation ultérieure
+                // Ajouter aux tableaux pour référence future
                 signatureBoxes.push(signatureBox);
-                signaturePads.push(pad);
+                signaturePads.push(signaturePad);
                 
-                return { box: signatureBox, pad: pad };
+                return { box: signatureBox, pad: signaturePad };
             }
             
             // Variable pour suivre si les zones de signature ont été créées
@@ -450,20 +473,27 @@
                         velocityFilterWeight: 0.7
                     });
                     
-                    // Conserver les références
+                        // Conserver les références
                     currentCanvas = signCanvas;
                     signatureBoxes.push(null); // Pour garder une structure cohérente
                     signaturePads.push(signaturePad);
                 }
-                
-                // Activer le bouton d'effacement
-                clearButton.addEventListener('click', function() {
-                    console.log('Effacement de la signature');
-                    if (signaturePad) {
-                        signaturePad.clear();
-                    }
-                });
             }
+            
+            // Activer le bouton d'effacement (global, en dehors des autres fonctions)
+            clearButton.addEventListener('click', function() {
+                console.log('Effacement de la signature active');
+                if (activeSignaturePad) {
+                    // Effacer la signature active
+                    activeSignaturePad.clear();
+                    console.log('Signature effacée');
+                } else if (signaturePad) {
+                    // Fallback pour le mode signature unique
+                    signaturePad.clear();
+                } else {
+                    console.warn('Aucune signature active à effacer');
+                }
+            });
             
             // Vérifier si toutes les signatures sont complétées
             function allSignaturesComplete() {
