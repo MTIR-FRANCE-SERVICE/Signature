@@ -327,7 +327,7 @@
                 signCanvas.height = height - 4;
                 signCanvas.style.width = '100%';
                 signCanvas.style.height = '100%';
-                signCanvas.style.display = 'none'; // Caché par défaut
+                signCanvas.style.display = 'block'; // Visible par défaut
                 signatureBox.appendChild(signCanvas);
                 
                 // Initialiser le pad de signature pour cette boîte
@@ -337,20 +337,20 @@
                     velocityFilterWeight: 0.7
                 });
                 
-                // Ajouter un événement de clic pour activer cette zone
-                signatureBox.addEventListener('click', function() {
-                    // Masquer les autres canvas actifs
-                    document.querySelectorAll('.signature-box canvas').forEach(canvas => {
-                        if (canvas !== signCanvas) canvas.style.display = 'none';
+                // Ajouter un événement de clic
+                signatureBox.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    
+                    // Ne pas cacher les canvas mais juste désactiver les autres
+                    document.querySelectorAll('.signature-box').forEach(box => {
+                        box.classList.remove('active');
                     });
+                    signatureBox.classList.add('active');
                     
-                    // Afficher ce canvas
-                    signatureBox.style.backgroundColor = 'white';
-                    signCanvas.style.display = 'block';
+                    // Définir ce pad comme signature active
+                    activeSignaturePad = pad;
                     
-                    // Définir cette zone comme active
-                    currentCanvas = signCanvas;
-                    signaturePad = pad;
+                    console.log('Zone de signature activée : ' + (label || 'sans label'));
                 });
                 
                 // Stocker les références pour utilisation ultérieure
