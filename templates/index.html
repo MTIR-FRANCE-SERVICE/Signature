@@ -287,18 +287,16 @@
             function createSignatureBox(pageNum, x, y, width, height, label) {
                 console.log(`Création de la zone de signature: ${label} sur page ${pageNum} aux coordonnées (${x},${y})`);
                 
-                // Attention: PDF.js utilise des indices commençant à 1, mais dans notre cas on index à partir de 1 aussi
-                // Rechercher la page PDF correspondante - en testant plusieurs méthodes de sélection
-                let pageDiv = document.querySelector(`.pdf-page[data-page-number="${pageNum}"]`);
+                // Trouver la div de la page
+                const pageDiv = document.querySelector(`#page-container > .page:nth-child(${pageNum})`);
                 
-                // Deuxième tentative: sélectionner par position dans l'ordre des pages
+                // Si la page n'a pas été trouvée par sélecteur, essayer de la trouver par index
                 if (!pageDiv) {
-                    // Les pages sont indexées à partir de 1 dans notre DOM
-                    const pages = document.querySelectorAll('.pdf-page');
-                    // Si pageNum est 1, on prend la première page (index 0)
-                    if (pageNum > 0 && pageNum <= pages.length) {
-                        pageDiv = pages[pageNum - 1];
-                        console.log(`Page ${pageNum} trouvée par index d'élément: ${pageNum-1}`);
+                    const pdfContainer = document.querySelector("#page-container");
+                    if (pdfContainer && pdfContainer.children.length >= pageNum) {
+                        const pageIndex = pageNum - 1;  // l'index est 0-based, pageNum est 1-based
+                        console.log(`Page ${pageNum} trouvée par index d'élément: ${pageIndex}`);
+                        pageDiv = pdfContainer.children[pageIndex];
                     }
                 }
                 
@@ -307,31 +305,18 @@
                     return;
                 }
                 
-                // Calculer le facteur d'échelle pour ajuster la position
-                const scaleFactor = getScaleFactor(pageDiv);
-                console.log(`Facteur d'échelle pour la page ${pageNum}: ${scaleFactor}`);
-                
-                // Ajuster les coordonnées avec le facteur d'échelle
-                // Limiter les valeurs X et Y pour s'assurer que les zones restent visibles
-                const scaledX = Math.min(x * scaleFactor, pageDiv.clientWidth - (width * scaleFactor));
-                
-                // Pour les valeurs Y, limiter à la hauteur de la page moins la hauteur de la zone
-                // et diviser Y par 2 pour un meilleur positionnement vertical (les valeurs sont souvent trop grandes)
-                const adjustedY = Math.min(y / 2, pageDiv.clientHeight - 50);
-                const scaledY = adjustedY * scaleFactor;
-                
-                // Pour la taille, assurer qu'elle soit raisonnable
-                const scaledWidth = Math.min(width * scaleFactor, 300);
-                const scaledHeight = Math.min(height * scaleFactor, 150);
+                // Utiliser directement les coordonnées fournies sans aucun ajustement
+                // Puisque les positions sont déjà calculées correctement dans n8n
+                console.log(`Utilisation directe des coordonnées: x=${x}, y=${y}, width=${width}, height=${height}`);
                 
                 // Créer le conteneur de la zone de signature
                 const signatureBox = document.createElement('div');
                 signatureBox.className = 'signature-box';
                 signatureBox.style.position = 'absolute';
-                signatureBox.style.left = `${scaledX}px`;
-                signatureBox.style.top = `${scaledY}px`;
-                signatureBox.style.width = `${scaledWidth}px`;
-                signatureBox.style.height = `${scaledHeight}px`;
+                signatureBox.style.left = `${x}px`;
+                signatureBox.style.top = `${y}px`;
+                signatureBox.style.width = `${width}px`;
+                signatureBox.style.height = `${height}px`;
                 signatureBox.style.border = '3px dashed #FF0000';
                 signatureBox.style.backgroundColor = 'rgba(255, 0, 0, 0.2)';
                 signatureBox.style.zIndex = '1000';
