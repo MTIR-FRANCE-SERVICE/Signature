@@ -321,12 +321,14 @@
                 signatureBox.style.top = `${scaledY}px`;
                 signatureBox.style.width = `${scaledWidth}px`;
                 signatureBox.style.height = `${scaledHeight}px`;
-                signatureBox.style.border = '2px dashed #007bff';
-                signatureBox.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
-                signatureBox.style.zIndex = '100';
+                signatureBox.style.border = '3px dashed #FF0000';
+                signatureBox.style.backgroundColor = 'rgba(255, 0, 0, 0.2)';
+                signatureBox.style.zIndex = '1000';
                 signatureBox.style.cursor = 'pointer';
                 signatureBox.style.boxSizing = 'border-box';
+                signatureBox.style.pointerEvents = 'auto';
                 signatureBox.setAttribute('data-label', label);
+                console.log(`Zone de signature créée aux coordonnées: ${scaledX}px, ${scaledY}px (taille: ${scaledWidth}x${scaledHeight}px)`);
                 
                 // Ajouter un label à la zone de signature
                 const labelDiv = document.createElement('div');
@@ -379,6 +381,9 @@
                     activeSignaturePad = signaturePad;
                 });
                 
+                // Rendre la zone visible avec une opacité pleine
+                signatureBox.style.opacity = '1';
+                    
                 // Ajouter aux tableaux pour référence future
                 signatureBoxes.push(signatureBox);
                 signaturePads.push(signaturePad);
